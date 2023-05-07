@@ -243,8 +243,6 @@ void extractArchive(FILE *archive)
         rmdir(temp);
 
         // create each file based on the metadata
-        printf("File name: %s", temp);
-        // create the file
         FILE *newFile;
         newFile = fopen(temp, "w");
         if (newFile == NULL)
