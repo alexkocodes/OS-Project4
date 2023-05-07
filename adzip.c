@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <dirent.h>
 
-void list_dir(const char *path, int indent)
+void list_dir(const char *path, int indent) // function to prints out the hierarchy of files and directories
 {
     DIR *dir = opendir(path); // Open the directory
     if (!dir)
@@ -64,6 +64,93 @@ void list_dir(const char *path, int indent)
     closedir(dir);
 }
 
+void archive_files(char *input, FILE *archive) // function to archive files
+{
+    // input_dir can be a directory or a file
+    // If it's a directory, recursively call archive_files on all files in the directory
+    // If it's a file, write the contents of the file to the archive
+
+    struct stat st;
+    if (lstat(input, &st) < 0)
+    {
+        perror("Error getting file/directory info");
+        exit(1);
+    }
+
+    if (S_ISDIR(st.st_mode))
+    {
+
+        DIR *dir = opendir(input);
+        if (dir == NULL)
+        {
+            perror("Error opening input directory");
+            exit(1);
+        }
+
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL)
+        {
+            char path[1024];
+            snprintf(path, sizeof(path), "%s/%s", input, entry->d_name);
+
+            struct stat st;
+            if (lstat(path, &st) < 0)
+            {
+                perror("Error getting file/directory info");
+                exit(1);
+            }
+
+            if (S_ISDIR(st.st_mode))
+            {
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                {
+                    continue;
+                }
+
+                archive_files(path, archive);
+            }
+            else
+            {
+                FILE *file = fopen(path, "r");
+                if (file == NULL)
+                {
+                    perror("Error opening file");
+                    exit(1);
+                }
+
+                char buffer[1024];
+                size_t bytes_read;
+                while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+                {
+                    fwrite(buffer, 1, bytes_read, archive);
+                }
+
+                fclose(file);
+            }
+        }
+
+        closedir(dir);
+    };
+    if (S_ISREG(st.st_mode))
+    {
+        FILE *file = fopen(input, "r");
+        if (file == NULL)
+        {
+            perror("Error opening file");
+            exit(1);
+        }
+
+        char buffer[1024];
+        size_t bytes_read;
+        while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+        {
+            fwrite(buffer, 1, bytes_read, archive);
+        }
+
+        fclose(file);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     // Declare variables for args (as specified by the assignment)
@@ -76,7 +163,82 @@ int main(int argc, char *argv[])
     ad_file = argv[2];
     input_file = argv[3];
 
-    list_dir(input_file, 0);
+    if (operation == NULL || ad_file == NULL || input_file == NULL)
+    {
+        printf("Error: Missing arguments\n");
+        exit(1);
+    }
+    if (strcmp(operation, "-c") == 0)
+    { // if the operation is -c, then archive the files
+        FILE *archive = fopen(ad_file, "w");
+        if (archive == NULL)
+        {
+            perror("Error opening archive file");
+            exit(1);
+        }
 
-    exit(0);
+        archive_files(input_file, archive);
+
+        fclose(archive);
+
+        printf("All files archived successfully.\n");
+        exit(0);
+    }
+    if (strcmp(operation, "-a") == 0)
+    { // if the operation is -p, then append the files to the archive
+        FILE *archive = fopen(ad_file, "a");
+        if (archive == NULL)
+        {
+            perror("Error opening archive file");
+            exit(1);
+        }
+
+        archive_files(input_file, archive);
+        fclose(archive);
+        exit(0);
+    }
+    if (strcmp(operation, "-x") == 0)
+    { // if the operation is -x, then extract the files
+        FILE *archive = fopen(ad_file, "r");
+        if (archive == NULL)
+        {
+            perror("Error opening archive file");
+            exit(1);
+        }
+
+        char buffer[1024];
+        size_t bytes_read;
+        while ((bytes_read = fread(buffer, 1, sizeof(buffer), archive)) > 0)
+        {
+            fwrite(buffer, 1, bytes_read, stdout);
+        }
+
+        fclose(archive);
+
+        printf("All files extracted successfully.\n");
+        exit(0);
+    }
+    if (strcmp(operation, "-m") == 0) // if the operation is -m, then print metadata from the archive
+    {
+        // Open the archive file
+        FILE *archive = fopen(ad_file, "r");
+        if (archive == NULL)
+        {
+            perror("Error opening archive file");
+            exit(1);
+        }
+
+        fclose(archive);
+        exit(0);
+    }
+    if (strcmp(operation, "-p") == 0) // if the operation is -p, then print the hierarchy of files and directories
+    {
+        list_dir(input_file, 0);
+        exit(0);
+    }
+    else
+    {
+        printf("Error: Invalid operation\n");
+        exit(1);
+    }
 }
