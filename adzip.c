@@ -31,8 +31,8 @@ void list_dir(const char *path, int indent) // function to prints out the hierar
     {
         char full_path[1024];
 
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue; // Skip self and parent
+        if (strcmp(entry->d_name, "..") == 0)
+            continue; // Skip parent
 
         sprintf(full_path, "%s/%s", path, entry->d_name); // Get the full path of the file
         // printf("%s\n", full_path);                        // Print the full path
@@ -100,15 +100,22 @@ void archive_files(char *input, FILE *archive) // function to archive files
                 exit(1);
             }
 
+            // store the directory in the archive as well
             if (S_ISDIR(st.st_mode))
             {
                 if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-                {
-                    continue;
-                }
+                    continue; // Skip parent
+                // before we write the actual data, write the metadata of this directory first
+                // write the file name, user id, group id, size and permissions
+                // fprintf(archive, "%s\n", entry->d_name);
+                // fprintf(archive, "%d\n", st.st_uid);
+                // fprintf(archive, "%d\n", st.st_gid);
+                // fprintf(archive, "%lld\n", st.st_size);
+                // fprintf(archive, "%o\n", st.st_mode & 0777);
 
-                archive_files(path, archive);
+                archive_files(path, archive); // recursively call archive_files on the directory
             }
+
             else
             {
                 FILE *file = fopen(path, "r");
@@ -118,6 +125,16 @@ void archive_files(char *input, FILE *archive) // function to archive files
                     exit(1);
                 }
 
+                // before we write the actual data, write the metadata of this file first
+                // write the file name, user id, group id, size and permissions
+                // write the full path of the file as the filename
+                fprintf(archive, "%s\n", path);
+                fprintf(archive, "%d\n", st.st_uid);
+                fprintf(archive, "%d\n", st.st_gid);
+                fprintf(archive, "%lld\n", st.st_size);
+                fprintf(archive, "%o\n", st.st_mode & 0777);
+
+                // now write the actual data
                 char buffer[1024];
                 size_t bytes_read;
                 while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
@@ -151,6 +168,104 @@ void archive_files(char *input, FILE *archive) // function to archive files
     }
 }
 
+void printMetadata(FILE *archive) // function to print the metadata of the archived files and skip the actual data
+{
+    // go to the beginning of the file
+    fseek(archive, 0, SEEK_SET);
+
+    // read the file name, user id, group id, size and permissions and skip the actual data
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), archive) != NULL) // read until EOF
+    {
+        int size;
+        printf("File name: %s", buffer);
+        fgets(buffer, sizeof(buffer), archive);
+        printf("User ID: %s", buffer);
+        fgets(buffer, sizeof(buffer), archive);
+        printf("Group ID: %s", buffer);
+        fgets(buffer, sizeof(buffer), archive);
+        printf("Size: %s", buffer);
+        size = atoi(buffer);
+        fgets(buffer, sizeof(buffer), archive);
+        printf("Permissions: %s\n", buffer);
+
+        // skip the actual data
+        fseek(archive, size, SEEK_CUR);
+    }
+}
+
+void extractArchive(FILE *archive)
+{
+
+    char filename[1024], uid[1024], gid[1024], mode[1024];
+
+    int size;
+    // go to the beginning of the file
+    fseek(archive, 0, SEEK_SET);
+
+    // read the file name, user id, group id, size and permissions
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), archive) != NULL) // read until EOF
+    {
+        // read the file name, user id, group id, size and permissions
+
+        strcpy(filename, buffer);
+        // printf("File name: %s", filename);
+        fgets(buffer, sizeof(buffer), archive);
+        strcpy(uid, buffer);
+        // printf("User ID: %s", uid);
+        fgets(buffer, sizeof(buffer), archive);
+        strcpy(gid, buffer);
+        // printf("Group ID: %s", gid);
+        fgets(buffer, sizeof(buffer), archive);
+        size = atoi(buffer);
+        // printf("Size: %s", buffer);
+        fgets(buffer, sizeof(buffer), archive);
+        strcpy(mode, buffer);
+        // printf("Permissions: %s\n", mode);
+
+        // create the file with the same metadata, create the folders as well
+        // create the folders
+        char *token;
+        token = strtok(filename, "/");
+        char *temp = malloc(strlen(filename) + 1);
+        strcpy(temp, token);
+        mkdir(temp, 0777); // create the first folder
+        // create the rest of the folders
+        while ((token = strtok(NULL, "/")) != NULL)
+        {
+            // append the next folder to the path
+            strcat(temp, "/");
+            strcat(temp, token);
+            mkdir(temp, 0777);
+        }
+        // remove the last folder since it should be a file
+        rmdir(temp);
+
+        // create each file based on the metadata
+        printf("File name: %s", temp);
+        // create the file
+        FILE *newFile;
+        newFile = fopen(temp, "w");
+        if (newFile == NULL)
+        {
+            perror("Error creating file");
+            exit(1);
+        }
+
+        // write the actual data based on the size
+        char buffer[1024];
+        size_t bytes_read;
+        bytes_read = fread(buffer, 1, size, archive);
+        fwrite(buffer, 1, bytes_read, newFile);
+
+        // fseek(archive, size, SEEK_CUR);
+        // close the file
+        fclose(newFile);
+        free(temp);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     // Declare variables for args (as specified by the assignment)
@@ -163,13 +278,13 @@ int main(int argc, char *argv[])
     ad_file = argv[2];
     input_file = argv[3];
 
-    if (operation == NULL || ad_file == NULL || input_file == NULL)
+    if (strcmp(operation, "-c") == 0) // if the operation is -c, then archive the files
     {
-        printf("Error: Missing arguments\n");
-        exit(1);
-    }
-    if (strcmp(operation, "-c") == 0)
-    { // if the operation is -c, then archive the files
+        if (operation == NULL || ad_file == NULL || input_file == NULL)
+        {
+            printf("Error: Missing arguments\n");
+            exit(1);
+        }
         FILE *archive = fopen(ad_file, "w");
         if (archive == NULL)
         {
@@ -179,13 +294,17 @@ int main(int argc, char *argv[])
 
         archive_files(input_file, archive);
 
-        fclose(archive);
-
         printf("All files archived successfully.\n");
+        fclose(archive);
         exit(0);
     }
-    if (strcmp(operation, "-a") == 0)
-    { // if the operation is -p, then append the files to the archive
+    if (strcmp(operation, "-a") == 0) // if the operation is -p, then append the files to the archive
+    {
+        if (operation == NULL || ad_file == NULL || input_file == NULL)
+        {
+            printf("Error: Missing arguments\n");
+            exit(1);
+        }
         FILE *archive = fopen(ad_file, "a");
         if (archive == NULL)
         {
@@ -197,8 +316,13 @@ int main(int argc, char *argv[])
         fclose(archive);
         exit(0);
     }
-    if (strcmp(operation, "-x") == 0)
-    { // if the operation is -x, then extract the files
+    if (strcmp(operation, "-x") == 0) // if the operation is -x, then extract the files
+    {
+        if (operation == NULL || ad_file == NULL)
+        {
+            printf("Error: Missing arguments\n");
+            exit(1);
+        }
         FILE *archive = fopen(ad_file, "r");
         if (archive == NULL)
         {
@@ -206,12 +330,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        char buffer[1024];
-        size_t bytes_read;
-        while ((bytes_read = fread(buffer, 1, sizeof(buffer), archive)) > 0)
-        {
-            fwrite(buffer, 1, bytes_read, stdout);
-        }
+        extractArchive(archive);
 
         fclose(archive);
 
@@ -220,6 +339,11 @@ int main(int argc, char *argv[])
     }
     if (strcmp(operation, "-m") == 0) // if the operation is -m, then print metadata from the archive
     {
+        if (operation == NULL || ad_file == NULL)
+        {
+            printf("Error: Missing arguments\n");
+            exit(1);
+        }
         // Open the archive file
         FILE *archive = fopen(ad_file, "r");
         if (archive == NULL)
@@ -228,11 +352,17 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
+        printMetadata(archive);
         fclose(archive);
         exit(0);
     }
     if (strcmp(operation, "-p") == 0) // if the operation is -p, then print the hierarchy of files and directories
     {
+        if (operation == NULL || ad_file == NULL)
+        {
+            printf("Error: Missing arguments\n");
+            exit(1);
+        }
         list_dir(input_file, 0);
         exit(0);
     }
