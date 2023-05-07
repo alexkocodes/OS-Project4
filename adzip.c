@@ -12,11 +12,46 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/select.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <semaphore.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <dirent.h>
+
+void list_dir(const char *path, int indent)
+{
+    DIR *dir = opendir(path);
+    if (!dir)
+    {
+        printf("Failed to open directory %s\n", path);
+        return;
+    }
+
+    struct dirent *entry;
+    struct stat st;
+
+    while ((entry = readdir(dir)) != NULL)
+    {
+        char full_path[1024];
+
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        sprintf(full_path, "%s/%s", path, entry->d_name);
+
+        if (stat(full_path, &st) == -1)
+        {
+            printf("Failed to get file stats for %s\n", full_path);
+            continue;
+        }
+
+        printf("%*s%s - %o\n", indent, "", entry->d_name, st.st_mode & 0777);
+
+        if (S_ISDIR(st.st_mode))
+        {
+            list_dir(full_path, indent + 4);
+        }
+    }
+
+    closedir(dir);
+}
 
 int main(int argc, char *argv[])
 {
@@ -30,9 +65,7 @@ int main(int argc, char *argv[])
     ad_file = argv[2];
     input_file = argv[3];
 
-    printf("Operation: %s\n", operation);
-    printf("Ad File: %s\n", ad_file);
-    printf("Input File: %s\n", input_file);
+    list_dir(input_file, 0);
 
     exit(0);
 }
