@@ -66,23 +66,27 @@ void list_dir(const char *path, int indent) // function to prints out the hierar
 
 // Function to print the hierarchy of files and directories
 // inside the specified directory in a human-readable format
-void listDirHierarchy(const char *basePath, int depth) {
+void listDirHierarchy(const char *basePath, int depth)
+{
     DIR *dir;
     struct dirent *entry;
     struct stat filestat;
 
-    if (!(dir = opendir(basePath))) {
+    if (!(dir = opendir(basePath)))
+    {
         fprintf(stderr, "Failed to open directory %s\n", basePath);
         return;
     }
 
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != NULL)
+    {
         char path[1024];
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
         snprintf(path, sizeof(path), "%s/%s", basePath, entry->d_name);
-        if (lstat(path, &filestat) < 0) {
+        if (lstat(path, &filestat) < 0)
+        {
             fprintf(stderr, "Failed to stat %s\n", path);
             continue;
         }
@@ -95,7 +99,6 @@ void listDirHierarchy(const char *basePath, int depth) {
 
     closedir(dir);
 }
-
 
 void archive_files(char *input, FILE *archive) // function to archive files
 {
@@ -151,7 +154,7 @@ void archive_files(char *input, FILE *archive) // function to archive files
 
             else
             {
-                FILE *file = fopen(path, "r");
+                FILE *file = fopen(path, "rb");
                 if (file == NULL)
                 {
                     perror("Error opening file");
@@ -183,7 +186,7 @@ void archive_files(char *input, FILE *archive) // function to archive files
     };
     if (S_ISREG(st.st_mode))
     {
-        FILE *file = fopen(input, "r");
+        FILE *file = fopen(input, "rb");
         if (file == NULL)
         {
             perror("Error opening file");
@@ -277,7 +280,7 @@ void extractArchive(FILE *archive)
 
         // create each file based on the metadata
         FILE *newFile;
-        newFile = fopen(temp, "w");
+        newFile = fopen(temp, "wb");
         if (newFile == NULL)
         {
             perror("Error creating file");
@@ -285,7 +288,7 @@ void extractArchive(FILE *archive)
         }
 
         // write the actual data based on the size
-        char buffer[1024];
+        char buffer[size];
         size_t bytes_read;
         bytes_read = fread(buffer, 1, size, archive);
         fwrite(buffer, 1, bytes_read, newFile);
@@ -316,7 +319,7 @@ int main(int argc, char *argv[])
             printf("Error: Missing arguments\n");
             exit(1);
         }
-        FILE *archive = fopen(ad_file, "w");
+        FILE *archive = fopen(ad_file, "wb");
         if (archive == NULL)
         {
             perror("Error opening archive file");
@@ -354,7 +357,7 @@ int main(int argc, char *argv[])
             printf("Error: Missing arguments\n");
             exit(1);
         }
-        FILE *archive = fopen(ad_file, "r");
+        FILE *archive = fopen(ad_file, "rb");
         if (archive == NULL)
         {
             perror("Error opening archive file");
@@ -376,7 +379,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
         // Open the archive file
-        FILE *archive = fopen(ad_file, "r");
+        FILE *archive = fopen(ad_file, "rb");
         if (archive == NULL)
         {
             perror("Error opening archive file");
