@@ -118,7 +118,7 @@ void archive_files(char *input, FILE *archive) // function to archive files
 
             else
             {
-                FILE *file = fopen(path, "r");
+                FILE *file = fopen(path, "rb");
                 if (file == NULL)
                 {
                     perror("Error opening file");
@@ -150,7 +150,7 @@ void archive_files(char *input, FILE *archive) // function to archive files
     };
     if (S_ISREG(st.st_mode))
     {
-        FILE *file = fopen(input, "r");
+        FILE *file = fopen(input, "rb");
         if (file == NULL)
         {
             perror("Error opening file");
@@ -258,19 +258,19 @@ void extractArchive(FILE *archive)
         // read the file name, user id, group id, size and permissions
 
         strcpy(filename, buffer);
-        // printf("File name: %s", filename);
+        printf("File name: %s", filename);
         fgets(buffer, sizeof(buffer), archive);
         strcpy(uid, buffer);
-        // printf("User ID: %s", uid);
+        printf("User ID: %s", uid);
         fgets(buffer, sizeof(buffer), archive);
         strcpy(gid, buffer);
-        // printf("Group ID: %s", gid);
+        printf("Group ID: %s", gid);
         fgets(buffer, sizeof(buffer), archive);
         size = atoi(buffer);
-        // printf("Size: %s", buffer);
+        printf("Size: %s", buffer);
         fgets(buffer, sizeof(buffer), archive);
         strcpy(mode, buffer);
-        // printf("Permissions: %s\n", mode);
+        printf("Permissions: %s\n", mode);
 
         // create the file with the same metadata, create the folders as well
         // create the folders
@@ -292,7 +292,7 @@ void extractArchive(FILE *archive)
 
         // create each file based on the metadata
         FILE *newFile;
-        newFile = fopen(temp, "w");
+        newFile = fopen(temp, "wb");
         if (newFile == NULL)
         {
             perror("Error creating file");
@@ -300,15 +300,15 @@ void extractArchive(FILE *archive)
         }
 
         // write the actual data based on the size
-        char buffer[1024];
+        char buffer[size];
         size_t bytes_read;
         bytes_read = fread(buffer, 1, size, archive);
         fwrite(buffer, 1, bytes_read, newFile);
 
         // fseek(archive, size, SEEK_CUR);
         // close the file
-        fclose(newFile);
         free(temp);
+        fclose(newFile);
     }
 }
 
@@ -415,7 +415,7 @@ int main(int argc, char *argv[])
             printf("Error: Missing arguments\n");
             exit(1);
         }
-        FILE *archive = fopen(ad_file, "w");
+        FILE *archive = fopen(ad_file, "wb");
         if (archive == NULL)
         {
             perror("Error opening archive file");
@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
             printf("Error: Missing arguments\n");
             exit(1);
         }
-        FILE *archive = fopen(ad_file, "r");
+        FILE *archive = fopen(ad_file, "rb");
         if (archive == NULL)
         {
             perror("Error opening archive file");
@@ -475,7 +475,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
         // Open the archive file
-        FILE *archive = fopen(ad_file, "r");
+        FILE *archive = fopen(ad_file, "rb");
         if (archive == NULL)
         {
             perror("Error opening archive file");
