@@ -246,19 +246,19 @@ void extractArchive(FILE *archive)
         // read the file name, user id, group id, size and permissions
 
         strcpy(filename, buffer);
-        // printf("File name: %s", filename);
+        printf("File name: %s", filename);
         fgets(buffer, sizeof(buffer), archive);
         strcpy(uid, buffer);
-        // printf("User ID: %s", uid);
+        printf("User ID: %s", uid);
         fgets(buffer, sizeof(buffer), archive);
         strcpy(gid, buffer);
-        // printf("Group ID: %s", gid);
+        printf("Group ID: %s", gid);
         fgets(buffer, sizeof(buffer), archive);
         size = atoi(buffer);
-        // printf("Size: %s", buffer);
+        printf("Size: %s", buffer);
         fgets(buffer, sizeof(buffer), archive);
         strcpy(mode, buffer);
-        // printf("Permissions: %s\n", mode);
+        printf("Permissions: %s\n", mode);
 
         // create the file with the same metadata, create the folders as well
         // create the folders
@@ -295,7 +295,7 @@ void extractArchive(FILE *archive)
 
         // fseek(archive, size, SEEK_CUR);
         // close the file
-        // free(temp);
+        free(temp);
         fclose(newFile);
     }
 }
