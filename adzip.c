@@ -64,6 +64,39 @@ void list_dir(const char *path, int indent) // function to prints out the hierar
     closedir(dir);
 }
 
+// Function to print the hierarchy of files and directories
+// inside the specified directory in a human-readable format
+void listDirHierarchy(const char *basePath, int depth) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat filestat;
+
+    if (!(dir = opendir(basePath))) {
+        fprintf(stderr, "Failed to open directory %s\n", basePath);
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        char path[1024];
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        snprintf(path, sizeof(path), "%s/%s", basePath, entry->d_name);
+        if (lstat(path, &filestat) < 0) {
+            fprintf(stderr, "Failed to stat %s\n", path);
+            continue;
+        }
+
+        printf("%*s%s\n", depth * 2, "", entry->d_name);
+
+        if (S_ISDIR(filestat.st_mode))
+            listDirHierarchy(path, depth + 1);
+    }
+
+    closedir(dir);
+}
+
+
 void archive_files(char *input, FILE *archive) // function to archive files
 {
     // input_dir can be a directory or a file
@@ -361,7 +394,7 @@ int main(int argc, char *argv[])
             printf("Error: Missing arguments\n");
             exit(1);
         }
-        list_dir(input_file, 0);
+        listDirHierarchy(input_file, 0);
         exit(0);
     }
     else
