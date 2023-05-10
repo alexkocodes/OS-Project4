@@ -295,7 +295,7 @@ void extractArchive(FILE *archive)
 
         // fseek(archive, size, SEEK_CUR);
         // close the file
-        free(temp);
+        // free(temp);
         fclose(newFile);
     }
 }
