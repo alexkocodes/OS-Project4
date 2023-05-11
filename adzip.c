@@ -79,6 +79,33 @@ void archive_files(char *input, FILE *archive) // function to archive files
 
     if (S_ISDIR(st.st_mode))
     {
+        FILE *file = fopen(input, "rb");
+        if (file == NULL)
+        {
+            perror("Error opening file");
+            exit(1);
+        }
+
+        fprintf(archive, "%s\n", input);
+        fprintf(archive, "%d\n", st.st_uid);
+        fprintf(archive, "%d\n", st.st_gid);
+        fprintf(archive, "%d\n", 0); // size of directory is 0
+        // fprintf(archive, "%o\n", st.st_mode);
+        char permissions_string[11];
+        permissions_string[0] = S_ISDIR(st.st_mode) ? 'd' : '-';
+        permissions_string[1] = (st.st_mode & S_IRUSR) ? 'r' : '-';
+        permissions_string[2] = (st.st_mode & S_IWUSR) ? 'w' : '-';
+        permissions_string[3] = (st.st_mode & S_IXUSR) ? 'x' : '-';
+        permissions_string[4] = (st.st_mode & S_IRGRP) ? 'r' : '-';
+        permissions_string[5] = (st.st_mode & S_IWGRP) ? 'w' : '-';
+        permissions_string[6] = (st.st_mode & S_IXGRP) ? 'x' : '-';
+        permissions_string[7] = (st.st_mode & S_IROTH) ? 'r' : '-';
+        permissions_string[8] = (st.st_mode & S_IWOTH) ? 'w' : '-';
+        permissions_string[9] = (st.st_mode & S_IXOTH) ? 'x' : '-';
+        permissions_string[10] = '\0';
+        fprintf(archive, "%s\n", permissions_string);
+
+        fclose(file);
 
         DIR *dir = opendir(input);
         if (dir == NULL)
@@ -100,18 +127,10 @@ void archive_files(char *input, FILE *archive) // function to archive files
                 exit(1);
             }
 
-            // store the directory in the archive as well
             if (S_ISDIR(st.st_mode))
             {
                 if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-                    continue; // Skip parent
-                // before we write the actual data, write the metadata of this directory first
-                // write the file name, user id, group id, size and permissions
-                // fprintf(archive, "%s\n", entry->d_name);
-                // fprintf(archive, "%d\n", st.st_uid);
-                // fprintf(archive, "%d\n", st.st_gid);
-                // fprintf(archive, "%lld\n", st.st_size);
-                // fprintf(archive, "%o\n", st.st_mode & 0777);
+                    continue;
 
                 archive_files(path, archive); // recursively call archive_files on the directory
             }
@@ -170,6 +189,29 @@ void archive_files(char *input, FILE *archive) // function to archive files
             exit(1);
         }
 
+        // before we write the actual data, write the metadata of this file first
+        // write the file name, user id, group id, size and permissions
+        // write the full path of the file as the filename
+        fprintf(archive, "%s\n", input);
+        fprintf(archive, "%d\n", st.st_uid);
+        fprintf(archive, "%d\n", st.st_gid);
+        fprintf(archive, "%lld\n", st.st_size);
+        // fprintf(archive, "%o\n", st.st_mode);
+        char permissions_string[11];
+        permissions_string[0] = S_ISDIR(st.st_mode) ? 'd' : '-';
+        permissions_string[1] = (st.st_mode & S_IRUSR) ? 'r' : '-';
+        permissions_string[2] = (st.st_mode & S_IWUSR) ? 'w' : '-';
+        permissions_string[3] = (st.st_mode & S_IXUSR) ? 'x' : '-';
+        permissions_string[4] = (st.st_mode & S_IRGRP) ? 'r' : '-';
+        permissions_string[5] = (st.st_mode & S_IWGRP) ? 'w' : '-';
+        permissions_string[6] = (st.st_mode & S_IXGRP) ? 'x' : '-';
+        permissions_string[7] = (st.st_mode & S_IROTH) ? 'r' : '-';
+        permissions_string[8] = (st.st_mode & S_IWOTH) ? 'w' : '-';
+        permissions_string[9] = (st.st_mode & S_IXOTH) ? 'x' : '-';
+        permissions_string[10] = '\0';
+        fprintf(archive, "%s\n", permissions_string);
+
+        // now write the actual data
         char buffer[1024];
         size_t bytes_read;
         while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
@@ -191,7 +233,7 @@ void printMetadata(FILE *archive) // function to print the metadata of the archi
     while (fgets(buffer, sizeof(buffer), archive) != NULL) // read until EOF
     {
         int size;
-        printf("File name: %s", buffer);
+        printf("%s", buffer);
         fgets(buffer, sizeof(buffer), archive);
         fgets(buffer, sizeof(buffer), archive);
         fgets(buffer, sizeof(buffer), archive);
@@ -555,25 +597,27 @@ int main(int argc, char *argv[])
         // Since there is no reasonable way we reach a higher depth than that for each file
         char **all_paths = malloc(sizeof(char *) * paths->num_files * 100);
         int all_paths_index = 0;
-        if (fork() == 0) {
-        // Get the paths broken up by slashes and add them to the array
-        for (int i = 0; i < paths->num_files; i++)
+        if (fork() == 0)
         {
-            char **output_strings = break_up_string(paths->paths[i]);
-            for (int j = 0; j < 100; j++)
+            // Get the paths broken up by slashes and add them to the array
+            for (int i = 0; i < paths->num_files; i++)
             {
-                if (output_strings[j] == NULL)
+                char **output_strings = break_up_string(paths->paths[i]);
+                for (int j = 0; j < 100; j++)
                 {
-                    break;
+                    if (output_strings[j] == NULL)
+                    {
+                        break;
+                    }
+                    // printf("%s\n", output_strings[j]);
+                    all_paths[all_paths_index] = malloc(sizeof(char) * (strlen(output_strings[j]) + 1));
+                    strcpy(all_paths[all_paths_index], output_strings[j]);
+                    all_paths_index++;
                 }
-                // printf("%s\n", output_strings[j]);
-                all_paths[all_paths_index] = malloc(sizeof(char) * (strlen(output_strings[j]) + 1));
-                strcpy(all_paths[all_paths_index], output_strings[j]);
-                all_paths_index++;
             }
         }
-        }
-        else {
+        else
+        {
             wait(NULL);
         }
 
