@@ -539,15 +539,13 @@ int main(int argc, char *argv[])
         archive_paths *paths = getPaths(archive);
         fclose(archive);
 
-        sleep(2); // Program breaking when I remove this what the fuck
-
         // Get all the possible paths in our directory
         // These are the paths broken up by the number of slashes in each file path
         // It currently allows for 100 times the number of file paths we have
         // Since there is no reasonable way we reach a higher depth than that for each file
         char **all_paths = malloc(sizeof(char *) * paths->num_files * 100);
         int all_paths_index = 0;
-
+        if (fork() == 0) {
         // Get the paths broken up by slashes and add them to the array
         for (int i = 0; i < paths->num_files; i++)
         {
@@ -563,6 +561,10 @@ int main(int argc, char *argv[])
                 strcpy(all_paths[all_paths_index], output_strings[j]);
                 all_paths_index++;
             }
+        }
+        }
+        else {
+            wait(NULL);
         }
 
         // Sort all the broken up paths by the number of slashes they have
