@@ -64,42 +64,6 @@ void list_dir(const char *path, int indent) // function to prints out the hierar
     closedir(dir);
 }
 
-// Function to print the hierarchy of files and directories
-// inside the specified directory in a human-readable format
-void listDirHierarchy(const char *basePath, int depth)
-{
-    DIR *dir;
-    struct dirent *entry;
-    struct stat filestat;
-
-    if (!(dir = opendir(basePath)))
-    {
-        fprintf(stderr, "Failed to open directory %s\n", basePath);
-        return;
-    }
-
-    while ((entry = readdir(dir)) != NULL)
-    {
-        char path[1024];
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-
-        snprintf(path, sizeof(path), "%s/%s", basePath, entry->d_name);
-        if (lstat(path, &filestat) < 0)
-        {
-            fprintf(stderr, "Failed to stat %s\n", path);
-            continue;
-        }
-
-        printf("%*s%s\n", depth * 2, "", entry->d_name);
-
-        if (S_ISDIR(filestat.st_mode))
-            listDirHierarchy(path, depth + 1);
-    }
-
-    closedir(dir);
-}
-
 void archive_files(char *input, FILE *archive) // function to archive files
 {
     // input_dir can be a directory or a file
@@ -230,6 +194,54 @@ void printMetadata(FILE *archive) // function to print the metadata of the archi
     }
 }
 
+// Create a sturct to store all paths in the archive
+typedef struct
+{
+    char **paths;
+    int num_files;
+} archive_paths;
+
+// Get the full paths of all files in the archive
+archive_paths *getPaths(FILE *archive) {
+    // Go to the beginning of the file
+    fseek(archive, 0, SEEK_SET);
+
+    archive_paths *paths = malloc(sizeof(archive_paths));
+
+    // Create a dynamic array to store the file names
+    char **file_names = malloc(sizeof(char *));
+    int num_files = 0;
+
+    // read the file name, user id, group id, size and permissions and skip the actual data
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), archive) != NULL) // read until EOF
+    {
+        // printf("File name: %s", buffer);
+        // Add the file name to the array
+        file_names[num_files] = malloc(sizeof(buffer));
+        strcpy(file_names[num_files], buffer);
+        num_files++;
+        // Skip the rest of the metadata
+        int size;
+        fgets(buffer, sizeof(buffer), archive);
+        fgets(buffer, sizeof(buffer), archive);
+        fgets(buffer, sizeof(buffer), archive);
+        size = atoi(buffer);
+        fgets(buffer, sizeof(buffer), archive);
+
+        // Skip the actual data
+        fseek(archive, size, SEEK_CUR);
+    }
+
+    // Print the file names in the order of the array
+    // for (int i = 0; i < num_files; i++) {
+    //     printf("%s", file_names[i]);
+    // }
+    paths->paths = file_names;
+    paths->num_files = num_files;
+    return paths;
+}
+
 void extractArchive(FILE *archive)
 {
 
@@ -299,6 +311,90 @@ void extractArchive(FILE *archive)
         fclose(newFile);
     }
 }
+
+// Break up a file path into all its "subpaths"
+// For ex:
+/* test_folder/subfolder2/test2.txt
+-> test_folder/subfolder2/
+-> test_folder/
+*/
+// Function primarily generated via ChatGPT but required multiple alterations
+// to avoid unnecessary strings in our output array
+char** break_up_string(char* input_string) {
+    char** output_strings = malloc(sizeof(char*) * (strlen(input_string) + 1));
+    int output_index = 0;
+    char* token = strtok(input_string, "/");
+    char temp_string[1000] = {0};
+    while (token != NULL) {
+        strcat(temp_string, token);
+        strcat(temp_string, "/");
+        output_strings[output_index] = malloc(sizeof(char) * (strlen(temp_string) + 1));
+        strcpy(output_strings[output_index], temp_string);
+        output_index++;
+        token = strtok(NULL, "/");
+    }
+    output_strings[output_index] = malloc(sizeof(char) * (strlen(input_string) + 1));
+    strcpy(output_strings[output_index], input_string);
+    // Before returning, remove the trailing newlines from each string
+    for (int i = 0; i < output_index + 1; i++) {
+        if (output_strings[i][strlen(output_strings[i]) - 2] == '\n') {
+            output_strings[i][strlen(output_strings[i]) - 2] = '\0';
+        }
+    }
+    // And remove the last string, which is just the input string
+    output_strings[output_index] = NULL;
+    return output_strings;
+}
+
+// Function to compare how many slashes are in two strings
+// Used to sort the paths and "subpaths" by length
+// Passed as a comparator to C's qsort()
+int compare_strings(const void* a, const void* b) {
+    const char* str_a = *(const char**)a;
+    const char* str_b = *(const char**)b;
+
+    int slashes_a = 0;
+    for (int i = 0; i < strlen(str_a); i++) {
+        if (str_a[i] == '/') {
+            slashes_a++;
+        }
+    }
+
+    int slashes_b = 0;
+    for (int i = 0; i < strlen(str_b); i++) {
+        if (str_b[i] == '/') {
+            slashes_b++;
+        }
+    }
+
+    if (slashes_a < slashes_b) {
+        return -1;
+    } else if (slashes_a > slashes_b) {
+        return 1;
+    } else {
+        return strcmp(str_a, str_b);
+    }
+}
+
+// Function to remove duplicates from an array of strings
+// Used to remove duplicate paths and "subpaths" while printing
+// the hierarchy of files and (sub)directories in our archive
+void removeDuplicates(char **arr, int size) {
+    int i, j, k;
+    for (i = 0; i < size; ++i) {
+        for (j = i + 1; j < size;) {
+            if (strcmp(arr[j], arr[i]) == 0) {
+                for (k = j; k < size; ++k) {
+                    arr[k] = arr[k + 1];
+                }
+                --size;
+            } else {
+                ++j;
+            }
+        }
+    }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -397,7 +493,56 @@ int main(int argc, char *argv[])
             printf("Error: Missing arguments\n");
             exit(1);
         }
-        listDirHierarchy(input_file, 0);
+        FILE *archive = fopen(ad_file, "r");
+        // Get the paths of all files in our archive
+        // We will use these paths to get the hierarchy of files and directories
+        // in our archive
+        archive_paths *paths = getPaths(archive);
+        fclose(archive);
+
+        sleep(2); // Program breaking when I remove this what the fuck
+
+        // Get all the possible paths in our directory
+        // These are the paths broken up by the number of slashes in each file path
+        // It currently allows for 100 times the number of file paths we have
+        // Since there is no reasonable way we reach a higher depth than that for each file
+        char **all_paths = malloc(sizeof(char*) * paths->num_files * 100);
+        int all_paths_index = 0;
+        
+        // Get the paths broken up by slashes and add them to the array
+        for (int i = 0; i < paths->num_files; i++) {
+            char **output_strings = break_up_string(paths->paths[i]);
+            for (int j = 0; j < 100; j++) {
+                if (output_strings[j] == NULL) {
+                    break;
+                }
+                // printf("%s\n", output_strings[j]);
+                all_paths[all_paths_index] = malloc(sizeof(char) * (strlen(output_strings[j]) + 1));
+                strcpy(all_paths[all_paths_index], output_strings[j]);
+                all_paths_index++;
+            }
+        }
+
+        // Sort all the broken up paths by the number of slashes they have
+        // This enables us to print the paths from the "shallowest" to the "deepest"
+        // (i.e., from test_folder/ to subfolder3/ etc.)
+        qsort(all_paths, all_paths_index, sizeof(all_paths), compare_strings);
+        
+        // Remove the duplicates in our broken up paths
+        // We are bound to have duplicates since many file paths may
+        // come under the same subfolder(s)
+        removeDuplicates(all_paths, all_paths_index);
+
+        // Print the unique paths we have got, starting from the "shallowest"
+        // to the "deepest"
+        for (int i = 0; i < all_paths_index; i++) {
+            // move on if the string is empty or null
+            if (all_paths[i] == NULL || strcmp(all_paths[i], "") == 0) {
+                continue;
+            }
+            printf("%s\n", all_paths[i]); // Temporarily print the strings
+        }
+
         exit(0);
     }
     else
