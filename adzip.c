@@ -309,7 +309,6 @@ void extractArchive(FILE *archive)
     while (fgets(buffer, sizeof(buffer), archive) != NULL) // read until EOF
     {
         // read the file name, user id, group id, size and permissions
-
         strcpy(filename, buffer);
         printf("File name: %s", filename);
         fgets(buffer, sizeof(buffer), archive);
@@ -324,6 +323,11 @@ void extractArchive(FILE *archive)
         fgets(buffer, sizeof(buffer), archive);
         strcpy(mode, buffer);
         printf("Permissions: %s\n", mode);
+        // if this is a directory, skip it. We don't need to create it
+        if (mode[0] == 'd')
+        {
+            continue;
+        }
 
         // create the file with the same metadata, create the folders as well
         // create the folders
