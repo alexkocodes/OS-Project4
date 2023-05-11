@@ -132,7 +132,20 @@ void archive_files(char *input, FILE *archive) // function to archive files
                 fprintf(archive, "%d\n", st.st_uid);
                 fprintf(archive, "%d\n", st.st_gid);
                 fprintf(archive, "%lld\n", st.st_size);
-                fprintf(archive, "%o\n", st.st_mode & 0777);
+                // fprintf(archive, "%o\n", st.st_mode);
+                char permissions_string[11];
+                permissions_string[0] = S_ISDIR(st.st_mode) ? 'd' : '-';
+                permissions_string[1] = (st.st_mode & S_IRUSR) ? 'r' : '-';
+                permissions_string[2] = (st.st_mode & S_IWUSR) ? 'w' : '-';
+                permissions_string[3] = (st.st_mode & S_IXUSR) ? 'x' : '-';
+                permissions_string[4] = (st.st_mode & S_IRGRP) ? 'r' : '-';
+                permissions_string[5] = (st.st_mode & S_IWGRP) ? 'w' : '-';
+                permissions_string[6] = (st.st_mode & S_IXGRP) ? 'x' : '-';
+                permissions_string[7] = (st.st_mode & S_IROTH) ? 'r' : '-';
+                permissions_string[8] = (st.st_mode & S_IWOTH) ? 'w' : '-';
+                permissions_string[9] = (st.st_mode & S_IXOTH) ? 'x' : '-';
+                permissions_string[10] = '\0';
+                fprintf(archive, "%s\n", permissions_string);
 
                 // now write the actual data
                 char buffer[1024];
@@ -180,11 +193,8 @@ void printMetadata(FILE *archive) // function to print the metadata of the archi
         int size;
         printf("File name: %s", buffer);
         fgets(buffer, sizeof(buffer), archive);
-        printf("User ID: %s", buffer);
         fgets(buffer, sizeof(buffer), archive);
-        printf("Group ID: %s", buffer);
         fgets(buffer, sizeof(buffer), archive);
-        printf("Size: %s", buffer);
         size = atoi(buffer);
         fgets(buffer, sizeof(buffer), archive);
         printf("Permissions: %s\n", buffer);
