@@ -402,6 +402,15 @@ char **break_up_string(char *input_string)
             output_strings[i][strlen(output_strings[i]) - 2] = '\0';
         }
     }
+    // If the last character of a string is a slash, remove it
+    // (Duplicate of another directory not detected by our duplicate string checking function)
+    for (int i = 0; i < output_index + 1; i++)
+    {
+        if (output_strings[i][strlen(output_strings[i]) - 1] == '/')
+        {
+            output_strings[i][strlen(output_strings[i]) - 1] = '\0';
+        }
+    }
     // And remove the last string, which is just the input string
     output_strings[output_index] = NULL;
     return output_strings;
